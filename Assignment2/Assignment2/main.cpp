@@ -18,7 +18,7 @@ public:
 UINT thread(LPVOID pParam)
 {
 	Parameters *p = ((Parameters*)pParam);
-
+	printf("hello there this is a test \n\n");
 	// wait for mutex, then print and sleep inside the critical section
 	WaitForSingleObject(p->mutex, INFINITE);					// lock mutex
 	printf ("Thread %d started\n", GetCurrentThreadId ());		// always print inside critical section to avoid screen garbage
