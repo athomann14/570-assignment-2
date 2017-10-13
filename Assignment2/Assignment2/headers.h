@@ -7,6 +7,8 @@
 #include <map>
 #include <set>
 #include <string>
+#include <thread>
+#include "Parameters.h"
 
 
 using namespace std;		// if you're planning to use STL

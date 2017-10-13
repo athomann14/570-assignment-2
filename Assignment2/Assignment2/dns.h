@@ -8,4 +8,7 @@
 class DNS {
 public:
 	void printDNSServer (void);
+
+private:
+
 };
