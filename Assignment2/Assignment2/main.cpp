@@ -1,17 +1,34 @@
 /*	main.cpp
 CPS 472 Sample Code
 */
-
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include "winsock.h"  // must include winsock2.h at the very top of the file before include others
 #include "headers.h"
 #include "cpu.h"
 #include "dns.h"
 #include "lookup.h"
+#include "functions.h"
+#include "Parameters.h"
 #include <iostream>
 
 
-int main(void)
+int main(int argc, const char* argv[])
 {
+	
+	string inputString = "";
+	if (argc !=2 )
+	{
+		return -1;
+	}
+	inputString = argv[1];
+	
+
+	//input string is an IP
+	string typeOfQuery = "";
+
+	queryType(inputString, typeOfQuery);
+	//WqueryConstructor(inputString, typeOfQuery);
+
 	WSADATA wsaData;
 
 	//Initialize WinSock 
@@ -68,7 +85,8 @@ int main(void)
 
 	string host = "www.yahoo.com";
 	//	string host = "193.73.238.131.in-addr.arpa"; 
-	//	string host = "7.74.238.131.in-addr.arpa"; 
+	//	string host = "7.74.238.131.in-addr.arpa";
+
 	int pkt_size = sizeof(FixedDNSheader) + sizeof(QueryHeader) + host.size() + 2;
 
 	char* pkt = new char[pkt_size];
@@ -84,7 +102,8 @@ int main(void)
 	dHDR->flags = htons(DNS_QUERY | DNS_RD | DNS_STDQUERY);
 	//	dHDR->flags = htons( 0x0100 );  
 
-	int position = host.find(".");
+	int position = host.find(".")
+
 	string sub_str;
 
 	int i = 0, sub_size = 0, hdr_size = sizeof(FixedDNSheader);
@@ -117,7 +136,10 @@ int main(void)
 								   // set up the address of where we're sending data
 	struct sockaddr_in send_addr;
 	send_addr.sin_family = AF_INET;
+	dnsIP = "4.2.2.1";
+	//send_addr.sin_addr.S_un.S_addr = inet_addr(dnsIP.c_str()); // 208.67.222.222
 	send_addr.sin_addr.S_un.S_addr = inet_addr(dnsIP.c_str()); // 208.67.222.222
+	
 	send_addr.sin_port = htons(53);
 
 	int send_addrSize = sizeof(struct sockaddr_in);
@@ -157,12 +179,12 @@ int main(void)
 	//		printf("%x\t", i, recv_buf[i] ); 
 	//	}
 	//	cout<<endl; 
-
+	
 
 	closesocket(sock);
-
+	
 	delete[] pkt;
-
+	
 
 	printf("Terminating main(), completion time %d ms\n", timeGetTime() - t);
 

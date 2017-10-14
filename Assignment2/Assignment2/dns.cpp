@@ -4,6 +4,7 @@
 
 #include "headers.h"
 #include "dns.h"
+#include "lookup.h"
 
 // NOTE: link with Iphlpapi.lib; prints primary/second DNS server info
 
@@ -42,4 +43,28 @@ void DNS::printDNSServer(void)
 	}
 
 	GlobalFree (FixedInfo);
+}
+
+FixedDNSheader * DNS::CreateDNSHeader(char & pkt) {
+
+
+	string host = "www.yahoo.com";
+	//	string host = "193.73.238.131.in-addr.arpa"; 
+	//	string host = "7.74.238.131.in-addr.arpa"; 
+	int pkt_size = sizeof(FixedDNSheader) + sizeof(QueryHeader) + host.size() + 2;
+
+	char* pkt = new char[pkt_size];
+
+	FixedDNSheader * dHDR = (FixedDNSheader *)pkt;
+	QueryHeader *qHDR = (QueryHeader*)(pkt + pkt_size - sizeof(QueryHeader));
+
+	dHDR->ID = htons(102);
+	dHDR->questions = htons(1);
+	dHDR->addRRs = 0;
+	dHDR->answers = 0;
+	dHDR->authRRs = 0;
+	dHDR->flags = htons(DNS_QUERY | DNS_RD | DNS_STDQUERY);
+	//	dHDR->flags = htons( 0x0100 );
+
+	return dHDR;
 }

@@ -55,7 +55,7 @@ public:
 // Fixed DNS header size: 
 #pragma pack(push)	// exact fit data into a structure with given size -- no padding
 #pragma pack(1)
-class DNSheader{	// 12 bytes
+class FixedDNSheader {	// 12 bytes
 public:
 	u_short		ID;		// 2 bytes
 	u_short		flags;

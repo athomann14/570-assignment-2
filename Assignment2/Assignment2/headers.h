@@ -7,8 +7,9 @@
 #include <map>
 #include <set>
 #include <string>
-#include <thread>
-#include "Parameters.h"
+#include <regex>
+
+
 
 
 using namespace std;		// if you're planning to use STL

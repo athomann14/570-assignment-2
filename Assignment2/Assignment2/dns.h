@@ -7,8 +7,11 @@
 
 class DNS {
 public:
+	FixedDNSheader * DNS::CreateDNSHeader(void);
 	void printDNSServer (void);
-
+	u_short ID;
+	u_short flags;
+	u_short questions;
 private:
 
 };
