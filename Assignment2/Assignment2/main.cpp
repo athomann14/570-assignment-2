@@ -83,7 +83,8 @@ int main(int argc, const char* argv[])
 
 	// testing the DNS query
 
-	string host = "www.yahoo.com";
+	string host = "www.yahoo.com"; //for constructing type A query
+	//string host = "224.111.229.213.in-addr.arpa";  //for constructing type PTR Query
 	//	string host = "193.73.238.131.in-addr.arpa"; 
 	//	string host = "7.74.238.131.in-addr.arpa";
 
@@ -100,9 +101,10 @@ int main(int argc, const char* argv[])
 	dHDR->answers = 0;
 	dHDR->authRRs = 0;
 	dHDR->flags = htons(DNS_QUERY | DNS_RD | DNS_STDQUERY);
+	
 	//	dHDR->flags = htons( 0x0100 );  
 
-	int position = host.find(".")
+	int position = host.find(".");
 
 	string sub_str;
 
@@ -126,7 +128,8 @@ int main(int argc, const char* argv[])
 	qHDR->qclass = htons(DNS_INET);
 	//	qHDR->qclass = htons( 0x0001); 
 
-	qHDR->type = htons(DNS_A);
+	qHDR->type = htons(DNS_A); //for constructing type a Query
+	//qHDR->type = htons(DNS_PTR);
 	//	qHDR->type = htons( DNS_PTR ); 
 
 	Winsock ws;
