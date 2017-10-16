@@ -1,5 +1,6 @@
 // some .h files every .cpp needs
 #pragma once
+#include <WinSock2.h>
 #include <windows.h>
 #include <stdio.h>
 #include <mmsystem.h>
@@ -8,6 +9,8 @@
 #include <set>
 #include <string>
 #include <regex>
+#include <iostream>
+#include <cassert>
 
 
 

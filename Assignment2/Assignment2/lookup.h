@@ -40,6 +40,9 @@
 #define DNS_NOTIMPL		4	/* not implemented */
 #define DNS_REFUSED		5	/* server refused the query */
 
+/*Pointer checking*/
+#define PTR_NAME		(3 << 6)
+
 // class defines the fixed query header
 /* remember the current packing state */
 #pragma pack(push)	// exact fit data into a structure with given size -- no padding
@@ -84,4 +87,11 @@ public:
 
 	Question(void);			// constructor
 
+};
+
+class RR {
+public:
+	char * rName;
+	FixedRR * rrFields;
+	char * rData;
 };

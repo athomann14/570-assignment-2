@@ -1,15 +1,16 @@
 /*	main.cpp
 CPS 472 Sample Code
 */
-#define _WINSOCK_DEPRECATED_NO_WARNINGS
-#include "winsock.h"  // must include winsock2.h at the very top of the file before include others
+#pragma once
+
+
+//#include "winsock.h"  // must include winsock2.h at the very top of the file before include others
 #include "headers.h"
 #include "cpu.h"
 #include "dns.h"
-#include "lookup.h"
 #include "functions.h"
 #include "Parameters.h"
-#include <iostream>
+
 
 
 int main(int argc, const char* argv[])
@@ -22,11 +23,6 @@ int main(int argc, const char* argv[])
 	}
 	inputString = argv[1];
 	
-
-	//input string is an IP
-	string typeOfQuery = "";
-
-	queryType(inputString, typeOfQuery);
 	//WqueryConstructor(inputString, typeOfQuery);
 
 	WSADATA wsaData;
@@ -43,9 +39,8 @@ int main(int argc, const char* argv[])
 	printf("-----------------\n");
 
 	// print our primary/secondary DNS IPs
-	DNS mydns;
-	string dnsIP = "";
-	mydns.printDNSServer();
+
+
 
 	printf("-----------------\n");
 
@@ -83,11 +78,9 @@ int main(int argc, const char* argv[])
 
 	// testing the DNS query
 
-	string host = "www.yahoo.com"; //for constructing type A query
+	//string host = "www.yahoo.com"; //for constructing type A query
 	//string host = "224.111.229.213.in-addr.arpa";  //for constructing type PTR Query
-	//	string host = "193.73.238.131.in-addr.arpa"; 
-	//	string host = "7.74.238.131.in-addr.arpa";
-
+	/*
 	int pkt_size = sizeof(FixedDNSheader) + sizeof(QueryHeader) + host.size() + 2;
 
 	char* pkt = new char[pkt_size];
@@ -131,11 +124,14 @@ int main(int argc, const char* argv[])
 	qHDR->type = htons(DNS_A); //for constructing type a Query
 	//qHDR->type = htons(DNS_PTR);
 	//	qHDR->type = htons( DNS_PTR ); 
+	*/
 
+	/*
+	
 	Winsock ws;
 
 	SOCKET sock = ws.OpenSocket(); // defined in winsock.h
-
+	
 								   // set up the address of where we're sending data
 	struct sockaddr_in send_addr;
 	send_addr.sin_family = AF_INET;
@@ -190,6 +186,14 @@ int main(int argc, const char* argv[])
 	
 
 	printf("Terminating main(), completion time %d ms\n", timeGetTime() - t);
+	*/
+
+	DNS mydns;
+	mydns.printDNSServer();
+	mydns.setInputText(inputString);
+	mydns.queryType();
+	mydns.createPKT();
+	mydns.sendPKT();
 
 	WSACleanup();
 
