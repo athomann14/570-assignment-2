@@ -219,35 +219,43 @@ void DNS::responseParser(void) {
 
 	case 0 :
 	{
-		printf("Success DNS LOOKUP!\n");	
-		
+		printf("Answer(s): \n");	
+		char * responseBuffPointer = &recv_buf[DNS::pkt_size];
 		RR * rrArray = new RR[numAns];
 		for (int i = 0; i < numAns; i++) {
-			rrArray->rName = & recv_buf[DNS::pkt_size];
+
+			rrArray->rName = responseBuffPointer;
 			DNS::findName(rrArray);
+			int length = (int)ntohs(rrArray->rrFields->len);
+			responseBuffPointer += 2 + length +10 ;
+			printf("completed lookup \n");
 
+			//responseBuffPointer += (&rrArray->rrFields->len + 1 + rrArray->rrFields->len) - (&responseBuffPointer);
+		}
+		/*
+		printf("Auth. Answer(s): \n");
+		for (int i = 0; i < numAuthAns; i++) {
+
+			rrArray->rName = responseBuffPointer;
+			DNS::findName(rrArray);
+			int length = (int)ntohs(rrArray->rrFields->len);
+			responseBuffPointer += 2 + length + 10;
+			printf("completed lookup \n");
 		}
 
+		printf("Additional Answer(s): \n");
+		for (int i = 0; i < numAuthAns; i++) {
 
-
-
-		uint8_t hello = 192;
-		uint8_t offsetHeader = recv_buf[DNS::pkt_size];
-		bool isPointer = false;
-		if (recv_buf[DNS::pkt_size] == '1' &&  recv_buf[DNS::pkt_size + 1] == '1') {
-			isPointer = true;
-		}
-
-		if (isPointer) {
-
-		}
-
-
-		for (int i = 0; i < numAddAns; i++){
-
-
+		rrArray->rName = responseBuffPointer;
+		DNS::findName(rrArray);
+		int length = (int)ntohs(rrArray->rrFields->len);
+		responseBuffPointer += 2 + length + 10;
+		printf("completed lookup \n");
 		}
 		
+
+
+		*/
 		
 		break;
 	}
@@ -287,24 +295,51 @@ void DNS::responseParser(void) {
 
 void DNS::findName(RR * rrArray) {
 	// binary 1100 0000 anded with name to detect if entry is a pointer
-	if ((*rrArray->rName & PTR_NAME) == PTR_NAME) {
-		printf("THIS IS A POINTER WORKED!\n");
+		struct in_addr aRR;
+		string newname = "";
+		Readbuffer(newname, (rrArray->rName));
+		printf("Name: %s\n", newname.c_str());
+		u_short * hello2 = (u_short*)(rrArray->rName);
+		//this line is used to increment pointer to correct location for fixed RR
 		rrArray->rName += 2;
-		rrArray->rrFields = (FixedRR *)rrArray->rName; 
+		//rrArray->rrFields = (FixedRR *)rrArray->rName+2;
+		rrArray->rrFields = (FixedRR *)rrArray->rName;
 		cout << "type = " << ntohs(rrArray->rrFields->type) << endl;
-		cout << "class = " << ntohs(rrArray->rrFields->RRclass) << endl;
-		cout << "TTL = " << ntohs(rrArray->rrFields->ttl) << endl;
-		cout << "RDLength = " << ntohs(rrArray->rrFields->len) << endl;
+		//cout << "class = " << ntohs(rrArray->rrFields->RRclass) << endl;
+		//cout << "TTL = " << ntohs(rrArray->rrFields->ttl) << endl;
+		//cout << "RDLength = " << ntohs(rrArray->rrFields->len) << endl;
 		rrArray->rData = rrArray->rName + 10; //plus the ten bytes of the middle RR record contents
 		string newstring = "";
-		Readbuffer(newstring, (rrArray->rData));
-		printf("READ RESPONSE\n");
-	}
+		if (ntohs(rrArray->rrFields->type) == 1) {
+			//Type is an A record
+			u_long * addressPointer = (u_long *)rrArray->rData;
+			aRR.S_un.S_addr = *addressPointer;
+			newstring = inet_ntoa(aRR);
+			printf("IP: %s\n",newstring.c_str());
+
+		}
+		else {
+			Readbuffer(newstring, (rrArray->rData));
+			printf("Domain Name: %s\n", newstring.c_str());
+
+		}
+		
+		//printf("Hello there\n");
+	//}
 
 
 }
 
 void DNS::Readbuffer(string & parsedInput, char * buffer) {
+	// binary 1100 0000 0000 0000 anded with name to detect if entry is a pointer
+	if ((*buffer & PTR_NAME) == PTR_NAME) {
+		printf("THIS IS A POINTER VALUE!\n");
+		//cast to unsigned short pointer
+		u_short * offsetPTR = (u_short *)(buffer);
+		//subtract off 1100 0000 0000 0000 to get proper offset from recv_buf
+		u_short offset = ntohs(*offsetPTR) - PTR_NAME;
+		buffer = recv_buf + offset;
+	}
 
 	string tempstring = "";
 	int hello = *(buffer);
@@ -317,5 +352,5 @@ void DNS::Readbuffer(string & parsedInput, char * buffer) {
 		hello = *(buffer);
 	}
 	parsedInput = tempstring.substr(0, tempstring.length()-1);
-	printf("READ RESPONSE\n");
+	//printf("READ RESPONSE\n");
 }

@@ -41,7 +41,7 @@
 #define DNS_REFUSED		5	/* server refused the query */
 
 /*Pointer checking*/
-#define PTR_NAME		(3 << 6)
+#define PTR_NAME		(3 << 14)
 
 // class defines the fixed query header
 /* remember the current packing state */
@@ -91,7 +91,8 @@ public:
 
 class RR {
 public:
-	char * rName;
-	FixedRR * rrFields;
-	char * rData;
+	char * rName; //variable length
+	FixedRR * rrFields; //10 bytes
+	char * rData; //variable length
+	int totalLength;
 };
