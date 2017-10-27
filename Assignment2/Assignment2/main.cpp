@@ -13,20 +13,29 @@ CPS 472 Sample Code
 
 
 
+
 int main(int argc, const char* argv[])
 {
-	
+
 	string inputString = "";
-	if (argc !=2 )
+	if (argc != 2)
 	{
 		return -1;
 	}
 	inputString = argv[1];
-	
-	//WqueryConstructor(inputString, typeOfQuery);
+
+	int numThreads = 0;
+	string filename = "";
+	char * ptr;
+	//THIS IS HARDCODED NEED TO DEAL WITH CASES!!!!!!!!!!!!
+	bool batchMode = false;
+	long tempval = strtol(inputString.c_str(), &ptr, 10);
+	if ((tempval == 0) || (tempval == LONG_MAX) || (tempval == LONG_MIN)) {
+		batchMode = false;
+	}
+
 
 	WSADATA wsaData;
-
 	//Initialize WinSock 
 	WORD wVersionRequested = MAKEWORD(2, 2);
 	if (WSAStartup(wVersionRequested, &wsaData) != 0) {
@@ -35,7 +44,116 @@ int main(int argc, const char* argv[])
 		return -1;
 	}
 
+	Parameters p;
 
+	if (batchMode){
+		numThreads = stoi(argv[1]);
+		printf("Starting Batch Mode with %d threads... \n", numThreads);
+		printf("Reading input file... ");
+		if (!readInput(p.inputQueue) ){
+			return 0;
+		}
+
+		// thread handles are stored here; they can be used to check status of threads, or kill them
+		//HANDLE *ptrs = new HANDLE[numThreads];
+		//Parameters p;
+
+		// create a mutex for accessing critical sections (including printf)
+		//p.mutex = CreateMutex(NULL, 0, NULL);
+
+		// create a semaphore that counts the number of active threads
+		printf("...\n");
+		p.finished = CreateSemaphore(NULL, 0, numThreads, NULL);
+		p.eventQuit = CreateEvent(NULL, true, false, NULL);
+
+		//initializing counters
+		p.noDNSrec = 0;
+		p.noAuthDNSserver = 0;
+		p.localDNStimeout = 0;
+
+		// get current time
+		DWORD t = timeGetTime();
+
+		//Create a vector of threads and initialize them
+		vector<thread> threads;
+		for (int i = 0; i < numThreads; i++) {
+			threads.push_back(thread(threadFun, &p));
+		}
+
+		//joining threads to main thread 
+		for (auto& thread : threads) {
+			thread.join();
+
+		}
+
+		// structure p is the shared space between the threads
+		/*
+		for (int i = 0; i < numThreads; i++) {
+			ptrs[i] = CreateThread(NULL, 4096, (LPTHREAD_START_ROUTINE)thread, &p, 0, NULL);
+		}
+		
+		// make sure this thread hangs here until the other two quit; otherwise, the program will terminate prematurely
+		for (int i = 0; i < numThreads; i++) {
+			WaitForSingleObject(p.finished, INFINITE);
+		}
+		*/
+		printf("Completed %d queries\n",p.outputQueue.size());
+		printf("\tSuccessful: ") ;
+
+		size_t processed = p.outputQueue.size();
+		if(processed > 0){
+			cout << p.transmissionTimes.size() * 100 / p.outputQueue.size()  << "%" << endl;
+			cout << "\tNo DNS record: " << p.noDNSrec*100/ p.outputQueue.size() << "%" << endl;
+			cout << "\tNo auth DNS server: " << p.noAuthDNSserver * 100 / p.outputQueue.size() << "%" << endl;
+		}
+		string tempString = "";
+		ofstream fout; //input filestream
+		fout.open("dns-out.txt");
+		while (p.outputQueue.size()!=0) {
+			tempString = p.outputQueue.front();
+			p.outputQueue.pop();
+			fout << tempString << endl;
+		}
+		fout.close();
+		 
+		long tempval;
+		long totalDelays = 0;
+		ofstream fout2; //input filestream
+		fout2.open("dnsTranstimes.txt");
+		while (p.transmissionTimes.size() != 0) {
+			tempval = p.transmissionTimes.front();
+			totalDelays += tempval;
+			p.transmissionTimes.pop();
+			fout2 << tempval << endl;
+		}
+		fout2.close();
+
+		if (processed > 0)
+		cout << "\tAverage Delay: " << totalDelays / processed << " ms" << endl;
+		int totalRetx = 0;
+		int tempcount;
+		ofstream fout3; //input filestream
+		fout3.open("dnsTransnums.txt");
+
+		size_t successTrans = p.transmissionNums.size();
+		while (p.transmissionNums.size() != 0) {
+			tempcount = p.transmissionNums.front();
+			totalRetx += tempcount;
+			p.transmissionNums.pop();
+			fout3 << tempcount << endl;
+		}
+
+		if(successTrans > 0)
+		cout << "\tAverage retx attempts: " << totalRetx / successTrans << endl;
+
+		fout3.close();
+
+		
+	}
+
+
+
+	/*
 	printf("-----------------\n");
 
 	// print our primary/secondary DNS IPs
@@ -52,149 +170,21 @@ int main(int argc, const char* argv[])
 	printf("current CPU utilization %f%%\n", util);
 
 	printf("-----------------\n");
-
-	// thread handles are stored here; they can be used to check status of threads, or kill them
-	HANDLE *ptrs = new HANDLE[2];
-	Parameters p;
-
-	// create a mutex for accessing critical sections (including printf)
-	p.mutex = CreateMutex(NULL, 0, NULL);
-
-	// create a semaphore that counts the number of active threads
-	p.finished = CreateSemaphore(NULL, 0, 2, NULL);
-	p.eventQuit = CreateEvent(NULL, true, false, NULL);
-
-	// get current time
-	DWORD t = timeGetTime();
-
-	// structure p is the shared space between the threads
-	ptrs[0] = CreateThread(NULL, 4096, (LPTHREAD_START_ROUTINE)thread, &p, 0, NULL);
-	ptrs[1] = CreateThread(NULL, 4096, (LPTHREAD_START_ROUTINE)thread, &p, 0, NULL);
-
-	// make sure this thread hangs here until the other two quit; otherwise, the program will terminate prematurely
-	WaitForSingleObject(p.finished, INFINITE);
-	WaitForSingleObject(p.finished, INFINITE);
-
-
-	// testing the DNS query
-
-	//string host = "www.yahoo.com"; //for constructing type A query
-	//string host = "224.111.229.213.in-addr.arpa";  //for constructing type PTR Query
-	/*
-	int pkt_size = sizeof(FixedDNSheader) + sizeof(QueryHeader) + host.size() + 2;
-
-	char* pkt = new char[pkt_size];
-
-	FixedDNSheader * dHDR = (FixedDNSheader *)pkt;
-	QueryHeader *qHDR = (QueryHeader*)(pkt + pkt_size - sizeof(QueryHeader));
-
-	dHDR->ID = htons(102);
-	dHDR->questions = htons(1);
-	dHDR->addRRs = 0;
-	dHDR->answers = 0;
-	dHDR->authRRs = 0;
-	dHDR->flags = htons(DNS_QUERY | DNS_RD | DNS_STDQUERY);
-	
-	//	dHDR->flags = htons( 0x0100 );  
-
-	int position = host.find(".");
-
-	string sub_str;
-
-	int i = 0, sub_size = 0, hdr_size = sizeof(FixedDNSheader);
-
-	host += ".";
-	while (position != -1)
-	{
-		sub_size = position - i;
-		sub_str = host.substr(i, position);
-
-		pkt[hdr_size + i] = sub_size;  // specify the size of the chunk (subdomain)
-		i++;
-		memcpy(pkt + hdr_size + i, sub_str.c_str(), sub_size); // specify the actual subdomain
-
-		i += sub_size;
-		position = host.find(".", i);
-	}
-	pkt[hdr_size + i] = 0;
-
-	qHDR->qclass = htons(DNS_INET);
-	//	qHDR->qclass = htons( 0x0001); 
-
-	qHDR->type = htons(DNS_A); //for constructing type a Query
-	//qHDR->type = htons(DNS_PTR);
-	//	qHDR->type = htons( DNS_PTR ); 
 	*/
 
-	/*
-	
-	Winsock ws;
 
-	SOCKET sock = ws.OpenSocket(); // defined in winsock.h
-	
-								   // set up the address of where we're sending data
-	struct sockaddr_in send_addr;
-	send_addr.sin_family = AF_INET;
-	dnsIP = "4.2.2.1";
-	//send_addr.sin_addr.S_un.S_addr = inet_addr(dnsIP.c_str()); // 208.67.222.222
-	send_addr.sin_addr.S_un.S_addr = inet_addr(dnsIP.c_str()); // 208.67.222.222
-	
-	send_addr.sin_port = htons(53);
-
-	int send_addrSize = sizeof(struct sockaddr_in);
-
-	int sentbytes = sendto(sock, pkt, pkt_size, 0, (struct sockaddr*) &send_addr, send_addrSize);
-	cout << "sentbytes=" << sentbytes << endl;
-
-	for (int i = 0; i< pkt_size; i++)
-	{
-		printf("i=%d %c\n", i, pkt[i]);
+	if (!batchMode) {
+		DNS mydns;
+		mydns.printDNSServer();
+		mydns.setInputText(inputString);
+		mydns.queryType();
+		mydns.createPKT();
+		mydns.sendPKT();
+		printf("\n%s",mydns.printReply().c_str());
 	}
-	cout << endl;
 
-	char recv_buf[512];
 
-	int recvbytes = 0;
-	if (sentbytes > 0)
-		recvbytes = recvfrom(sock, recv_buf, 512, 0, (sockaddr *)&send_addr, &send_addrSize);
-
-	cout << "recv_bytes=" << recvbytes << endl;
-
-	FixedDNSheader * rDNS = (FixedDNSheader *)recv_buf;
-	cout << "ID=" << ntohs(dHDR->ID) << "??" << ntohs(rDNS->ID) << endl;
-	cout << "questions=" << ntohs(rDNS->questions) << endl;
-	cout << "Answers=" << ntohs(rDNS->answers) << endl;
-	cout << "authRRs=" << ntohs(rDNS->authRRs) << endl;
-	cout << "addRRs=" << ntohs(rDNS->addRRs) << endl;
-
-	printf("flag 0x=%x\n", ntohs(rDNS->flags));
-	unsigned short rcode = 0x0F;
-	rcode = rcode & ntohs(rDNS->flags);
-	cout << "Rcode= " << rcode << endl; ;
-
-	// for debugging:
-	//	for ( int i = 0; i< recvbytes; i++)
-	//	{
-	//		printf("%x\t", i, recv_buf[i] ); 
-	//	}
-	//	cout<<endl; 
 	
-
-	closesocket(sock);
-	
-	delete[] pkt;
-	
-
-	printf("Terminating main(), completion time %d ms\n", timeGetTime() - t);
-	*/
-
-	DNS mydns;
-	mydns.printDNSServer();
-	mydns.setInputText(inputString);
-	mydns.queryType();
-	mydns.createPKT();
-	mydns.sendPKT();
-
 	WSACleanup();
 
 	return 0;

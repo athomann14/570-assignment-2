@@ -1,5 +1,5 @@
 #pragma once
 #include "headers.h"
-UINT thread(LPVOID pParam);
-
+UINT threadFun(LPVOID pParam);
+bool readInput(queue<string> & inputQueue);
 

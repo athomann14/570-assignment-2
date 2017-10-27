@@ -10,7 +10,7 @@
 
 
 // NOTE: link with Iphlpapi.lib; prints primary/second DNS server info
-
+//Print DNS functionality provided by Dr. Yao
 void DNS::printDNSServer(void)
 {
 	// MSDN sample code
@@ -32,16 +32,16 @@ void DNS::printDNSServer(void)
 		printf( "Call to GetNetworkParams failed. Return Value: %08x\n", dwRetVal );
 	}
 	else {
-		printf( "Host Name: %s\n", FixedInfo->HostName );
-		printf( "Domain Name: %s\n", FixedInfo->DomainName );
+		//printf( "Host Name: %s\n", FixedInfo->HostName );
+		//printf( "Domain Name: %s\n", FixedInfo->DomainName );
 
-		printf( "Local DNS Servers:\n" );
+		//printf( "Local DNS Servers:\n" );
 		//printf( "\t%s\n", FixedInfo->DnsServerList.IpAddress.String);
 		DNS::localDNSIP = FixedInfo->DnsServerList.IpAddress.String;
 
 		pIPAddr = FixedInfo->DnsServerList.Next;
 		while ( pIPAddr ) {
-			printf( "\t%s\n", pIPAddr ->IpAddress.String);
+			//printf( "\t%s\n", pIPAddr ->IpAddress.String);
 			pIPAddr = pIPAddr ->Next;
 		}
 	}
@@ -115,7 +115,8 @@ void DNS::createPKT(void)
 void DNS::sendPKT(void)
 {
 
-
+	DNS::IPlookupSuccess = false;
+	DNS::lookUpTimer = 0;
 	Winsock ws;
 	DNS::sock = ws.OpenSocket();
 
@@ -128,24 +129,59 @@ void DNS::sendPKT(void)
 
 	int send_addrSize = sizeof(struct sockaddr_in);
 
-	int sentbytes = sendto(sock, pkt, pkt_size, 0, (struct sockaddr*) &send_addr, send_addrSize);
-	cout << "sentbytes=" << sentbytes << endl;
+	int count = 1;
+	struct timeval tp;
+	tp.tv_sec = 30;
+	tp.tv_usec = 0;
+	int recvbytes = 0;
+	
+	clock_t timer;
+	timer = clock();
+	
 
+	while (count < 4) {
+		int sentbytes = sendto(sock, pkt, pkt_size, 0, (struct sockaddr*) &send_addr, send_addrSize);
+		fd_set fd;
+		FD_ZERO(&fd); // clear the set
+		FD_SET(DNS::sock, &fd); // add your socket to the set
+		//int available = select(0, &fd, NULL, NULL, &tp);
+		//if (available > 0) {
+		if (select(0, &fd, NULL, NULL, &tp)>0){
+			recvbytes = recvfrom(sock, DNS::recv_buf, 512, 0, (sockaddr *)&send_addr, &send_addrSize);
+			timer = clock() - timer;
+			DNS::lookUpTimer = (timer);
+			DNS::responseParser();
+			DNS::count = count;
+			break;
+			// parse the response
+			// break from the loop
+		}
+		count++;
+		if (DNS::replyMessage.length() == 0){
+			DNS::replyMessage += "Local DNS server timeout";
+
+		}
+
+	}
+
+	/*
+	int sentbytes = sendto(sock, pkt, pkt_size, 0, (struct sockaddr*) &send_addr, send_addrSize);
+	//cout << "sentbytes=" << sentbytes << endl;
+
+	
 	for (int i = 0; i< pkt_size; i++)
 	{
 		printf("i=%d %c\n", i, pkt[i]);
 	}
 	cout << endl;
-
 	
-
 	int recvbytes = 0;
 	if (sentbytes > 0)
 		recvbytes = recvfrom(sock, DNS::recv_buf, 512, 0, (sockaddr *)&send_addr, &send_addrSize);
-
+	*/
 	//parser here
 
-	DNS::responseParser();
+	
 
 
 	//end parse here
@@ -164,8 +200,6 @@ void DNS::setInputText(string & input)
 
 void DNS::queryType(void)
 {
-	//unsigned long address = 0;
-
 	//determine if input is an IP address
 	string typeOfQuery = "PTR";
 	bool nextStage = true;
@@ -195,162 +229,224 @@ void DNS::queryType(void)
 
 void DNS::responseParser(void) {
 
-
-
-	//cout << "recv_bytes=" << recvbytes << endl;
-
 	FixedDNSheader * rDNS = (FixedDNSheader *)recv_buf;
+	/*
 	cout << "ID=" << ntohs(dHDR->ID) << "??" << ntohs(rDNS->ID) << endl;
 	cout << "questions=" << ntohs(rDNS->questions) << endl;
 	cout << "Answers=" << ntohs(rDNS->answers) << endl;
 	cout << "authRRs=" << ntohs(rDNS->authRRs) << endl;
 	cout << "addRRs=" << ntohs(rDNS->addRRs) << endl;
-
 	printf("flag 0x=%x\n", ntohs(rDNS->flags));
+	*/
 	unsigned short rcode = 0x0F;
 	rcode = rcode & ntohs(rDNS->flags);
-	cout << "Rcode= " << rcode << endl;
+	//cout << "Rcode= " << rcode << endl;
 	int numAns = ntohs(rDNS->answers);
 	int numAuthAns = ntohs(rDNS->authRRs);
 	int numAddAns = ntohs(rDNS->addRRs);
-	
+	DNS::replyMessage = "";
 	
 	switch (rcode) {
 
 	case 0 :
 	{
-		printf("Answer(s): \n");	
-		char * responseBuffPointer = &recv_buf[DNS::pkt_size];
-		RR * rrArray = new RR[numAns];
-		for (int i = 0; i < numAns; i++) {
+		DNS::IPlookupSuccess = TRUE;
+		
+		//THIS IS IMPORTANT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		replyType type = answer;
 
+		DNS::replyMessage +=("Answer(s): \n");	
+		char * responseBuffPointer = &recv_buf[DNS::pkt_size];
+		RR * rrArray = new RR[numAns+ numAuthAns+ numAddAns];
+
+		for (int i = 0; i < numAns; i++) {
 			rrArray->rName = responseBuffPointer;
 			DNS::findName(rrArray);
-			int length = (int)ntohs(rrArray->rrFields->len);
-			responseBuffPointer += 2 + length +10 ;
-			printf("completed lookup \n");
-
-			//responseBuffPointer += (&rrArray->rrFields->len + 1 + rrArray->rrFields->len) - (&responseBuffPointer);
+			int lengthOfData = (int)ntohs(rrArray->rrFields->len);
+			responseBuffPointer += DNS::nameFieldSize + lengthOfData +10 ;
 		}
 		/*
-		printf("Auth. Answer(s): \n");
-		for (int i = 0; i < numAuthAns; i++) {
-
-			rrArray->rName = responseBuffPointer;
-			DNS::findName(rrArray);
-			int length = (int)ntohs(rrArray->rrFields->len);
-			responseBuffPointer += 2 + length + 10;
-			printf("completed lookup \n");
+		if(numAuthAns >0){
+			for (int i = 0; i < numAuthAns; i++) {
+				rrArray->rName = responseBuffPointer;
+				DNS::findName(rrArray);
+				int lengthOfData = (int)ntohs(rrArray->rrFields->len);
+				responseBuffPointer += DNS::nameFieldSize + lengthOfData + 10;
+			}
 		}
-
-		printf("Additional Answer(s): \n");
-		for (int i = 0; i < numAuthAns; i++) {
-
-		rrArray->rName = responseBuffPointer;
-		DNS::findName(rrArray);
-		int length = (int)ntohs(rrArray->rrFields->len);
-		responseBuffPointer += 2 + length + 10;
-		printf("completed lookup \n");
+		
+		if (numAddAns >0) {
+			DNS::replyMessage += "Additional Answer(s): \n";
+			for (int i = 0; i < numAddAns; i++) {
+				rrArray->rName = responseBuffPointer;
+				DNS::findName(rrArray);
+				int lengthOfData = (int)ntohs(rrArray->rrFields->len);
+				responseBuffPointer += DNS::nameFieldSize + lengthOfData + 10;
+			}
 		}
+		*/
+
 		
 
 
-		*/
+		delete  rrArray ;
 		
 		break;
 	}
 	case 1:
 	{
-		printf("FORMAT ERROR!\n");
+		//printf("FORMAT ERROR!\n");
+		DNS::replyMessage += "FORMAT ERROR!\n";
 		break;
 	}
 	case 2:
 	{
-		printf("SERVER FAILURE!\n");
+		//printf("Authoritative DNS Server not found.\n");
+		DNS::replyMessage += "Authoritative DNS Server not found.\n";
+		DNS::internalNoauthDNScount++;
 		break;
 	}
 	case 3:
 	{
-		printf("NAME ERROR, DOMAIN NAME DOESN'T EXIST!\n");
+		//printf("No DNS entry.\n");
+		DNS::replyMessage += "No DNS entry.\n";
+		DNS::internalNoDNScount++;
 		break;
 	}
 	case 4:
 	{
-		printf("NOT IMPLEMENTED!\n");
+
+		//printf("NOT IMPLEMENTED!\n");
+		DNS::replyMessage +="NOT IMPLEMENTED!\n" ;
 		break;
 	}
 	case 5:
 	{
-		printf("REFUSED!\n");
+		//printf("REFUSED!\n");
+		DNS::replyMessage += "REFUSED!\n";
 		break;
 	}
 	 default:
-		printf("General Failure!\n");
+		//printf("General Failure!\n");
+		DNS::replyMessage += "General Failure!\n";
 		break;
 	}
 	
-	recv_buf[DNS::pkt_size];
+	//recv_buf[DNS::pkt_size];
 
 }
 
 void DNS::findName(RR * rrArray) {
+
 	// binary 1100 0000 anded with name to detect if entry is a pointer
 		struct in_addr aRR;
-		string newname = "";
-		Readbuffer(newname, (rrArray->rName));
-		printf("Name: %s\n", newname.c_str());
+		string nameParsed = "";
+		int timesRun = 0;
+		Readbuffer(nameParsed, (rrArray->rName), &timesRun);
+		//printf("Name: %s\n", nameParsed.c_str());
 		u_short * hello2 = (u_short*)(rrArray->rName);
 		//this line is used to increment pointer to correct location for fixed RR
-		rrArray->rName += 2;
+		//rrArray->rName += 2;
 		//rrArray->rrFields = (FixedRR *)rrArray->rName+2;
-		rrArray->rrFields = (FixedRR *)rrArray->rName;
-		cout << "type = " << ntohs(rrArray->rrFields->type) << endl;
+		rrArray->rrFields = (FixedRR *)(rrArray->rName+ DNS::nameFieldSize);
+		//cout << "type = " << ntohs(rrArray->rrFields->type) << endl;
 		//cout << "class = " << ntohs(rrArray->rrFields->RRclass) << endl;
 		//cout << "TTL = " << ntohs(rrArray->rrFields->ttl) << endl;
 		//cout << "RDLength = " << ntohs(rrArray->rrFields->len) << endl;
-		rrArray->rData = rrArray->rName + 10; //plus the ten bytes of the middle RR record contents
+		rrArray->rData = rrArray->rName + 10 + DNS::nameFieldSize; //plus the ten bytes of the middle RR record contents
 		string newstring = "";
-		if (ntohs(rrArray->rrFields->type) == 1) {
+		if (ntohs(rrArray->rrFields->type) == 1 && DNS::type != authAns) {
 			//Type is an A record
 			u_long * addressPointer = (u_long *)rrArray->rData;
-			aRR.S_un.S_addr = *addressPointer;
+			aRR.S_un.S_addr = (*addressPointer);
 			newstring = inet_ntoa(aRR);
-			printf("IP: %s\n",newstring.c_str());
+			DNS::replyMessage += nameParsed;
+			DNS::replyMessage += " is ";
+			DNS::replyMessage += newstring;
+			DNS::replyMessage += "\n";
+			//printf("%s is %s\n",nameParsed.c_str(),newstring.c_str());
 
 		}
-		else {
-			Readbuffer(newstring, (rrArray->rData));
-			printf("Domain Name: %s\n", newstring.c_str());
+		else if (DNS::type != authAns) {
+			//PTR record
+			Readbuffer(newstring, (rrArray->rData), &timesRun);
+			DNS::replyMessage += nameParsed;
+			DNS::replyMessage += " is ";
+			DNS::replyMessage += newstring;
+			DNS::replyMessage += "\n";
+			//DNS::replyMessage += sprintf("%s is %s\n", nameParsed.c_str(), newstring.c_str());
+			//printf("%s is %s\n", nameParsed.c_str(),newstring.c_str());
 
 		}
-		
-		//printf("Hello there\n");
-	//}
 
 
 }
 
-void DNS::Readbuffer(string & parsedInput, char * buffer) {
+void DNS::Readbuffer(string & parsedInput, char * buffer, int * timesRun) {
 	// binary 1100 0000 0000 0000 anded with name to detect if entry is a pointer
 	if ((*buffer & PTR_NAME) == PTR_NAME) {
-		printf("THIS IS A POINTER VALUE!\n");
+		//printf("THIS IS A POINTER VALUE!\n");
 		//cast to unsigned short pointer
 		u_short * offsetPTR = (u_short *)(buffer);
 		//subtract off 1100 0000 0000 0000 to get proper offset from recv_buf
 		u_short offset = ntohs(*offsetPTR) - PTR_NAME;
 		buffer = recv_buf + offset;
+		if (*timesRun == 0) {
+			DNS::nameFieldSize = 2;
+			*timesRun += 1;
+		}
 	}
 
+
+	int length = 0;
 	string tempstring = "";
-	int hello = *(buffer);
-	while (hello > 0) {
-		for (int i = 0; i < hello; i++) {
+	int numBytes = *(buffer);
+	while (numBytes > 0) {
+		for (int i = 0; i < numBytes; i++) {
 			tempstring += *(buffer + 1 + i);
 		}
 		tempstring += '.';
-		buffer += hello + 1;
-		hello = *(buffer);
+		buffer += numBytes + 1;
+		length += numBytes;
+		numBytes = *(buffer);
 	}
+
+	length++;
+	if (*timesRun == 0) {
+		DNS::nameFieldSize = length;
+		*timesRun += 1;
+	}
+	
 	parsedInput = tempstring.substr(0, tempstring.length()-1);
 	//printf("READ RESPONSE\n");
+}
+
+string DNS::printReply() {
+	
+	string tempString = DNS::replyMessage.c_str();
+	return tempString;
+
+}
+int DNS::printTnum() {
+	return DNS::count;
+}
+
+bool DNS::lookUpSuccess() {
+	return DNS::IPlookupSuccess;
+}
+
+long DNS::retrieveTransTime() {
+	return DNS::lookUpTimer;
+}
+
+void DNS::setCounters() {
+	DNS::internalNoDNScount = 0;
+	DNS::internalNoauthDNScount = 0;
+}
+
+int DNS::retrieveNoDNScount() {
+	return DNS::internalNoDNScount;
+}
+int DNS::retrieveNoAuthDNScount() {
+	return DNS::internalNoauthDNScount;
 }
